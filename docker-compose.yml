@@ -1,4 +1,19 @@
 services:
+  traefik:
+    image: traefik:v2.5
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - front-tier
+      - back-tier
+
   vote:
     build: 
       context: ./vote
@@ -15,10 +30,14 @@ services:
     volumes:
      - ./vote:/usr/local/app
     ports:
-      - "8080:80"
+      - "8082:80"
     networks:
       - front-tier
       - back-tier
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vote.rule=Host(`vote.localhost`)"
+      - "traefik.http.services.vote.loadbalancer.server.port=80"
 
   result:
     build: ./result
@@ -34,6 +53,10 @@ services:
     networks:
       - front-tier
       - back-tier
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.result.rule=Host(`result.localhost`)"
+      - "traefik.http.services.result.loadbalancer.server.port=80"
 
   worker:
     build:
@@ -84,6 +107,10 @@ services:
     privileged: true
     networks:
       - back-tier
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cadvisor.rule=Host(`cadvisor.localhost`)"
+      - "traefik.http.services.cadvisor.loadbalancer.server.port=8080"
 
   prometheus:
     image: prom/prometheus:latest
@@ -97,6 +124,10 @@ services:
       - redis_exporter
     networks:
       - back-tier
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.localhost`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
 
   redis_exporter:
     image: oliver006/redis_exporter:latest
@@ -115,19 +146,26 @@ services:
       - "3100:3100"
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
-      - ./loki-config.yaml:/etc/loki/loki-config.yaml
+      - ./loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - ./loki-data:/loki
     networks:
       - back-tier
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.loki.rule=Host(`loki.localhost`)"
+      - "traefik.http.services.loki.loadbalancer.server.port=3100"
 
   promtail:
     image: grafana/promtail:latest
     container_name: promtail
+    ports:
+      - "9080:9080"
+    command: -config.file=/etc/promtail/promtail-config.yaml
     volumes:
-      - ./promtail-config.yaml:/etc/promtail/promtail-config.yaml
-      - /var/log:/var/log
-      - /var/lib/docker/containers:/var/lib/docker/containers
-    command:
-      -config.file=/etc/promtail/promtail-config.yaml
+      - ./promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - /var/log:/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
     networks:
       - back-tier
 
@@ -142,10 +180,14 @@ services:
       - loki
     networks:
       - back-tier
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.localhost`)"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
 volumes:
   db-data:
-  grafana-storage:  # Added the missing Grafana storage volume
+  grafana-storage:
 
 networks:
   front-tier:

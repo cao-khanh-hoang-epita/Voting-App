@@ -1,8 +1,18 @@
+global:
+  scrape_interval: 15s  # Default scrape interval for all jobs
+  evaluation_interval: 15s
+
 scrape_configs:
+  # cAdvisor Metrics
   - job_name: 'cadvisor'
     scrape_interval: 5s
     static_configs:
       - targets:
           - cadvisor:8080  # Ensure this matches the cAdvisor host port in `docker-compose.yml`
+
+  # Redis Exporter Metrics
+  - job_name: 'redis_exporter'
+    scrape_interval: 5s
+    static_configs:
       - targets:
           - redis_exporter:9121
